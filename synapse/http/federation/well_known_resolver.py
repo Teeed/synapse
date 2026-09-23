@@ -26,6 +26,7 @@ from typing import Callable
 
 import attr
 
+from synapse.util.stringutils import is_anonweb_server_name
 from twisted.internet import defer
 from twisted.web.client import RedirectAgent
 from twisted.web.http import stringToDatetime
@@ -268,7 +269,10 @@ class WellKnownResolver:
         Returns:
             Returns the response object and body. Response may be a non-200 response.
         """
-        uri = b"https://%s/.well-known/matrix/server" % (server_name,)
+
+        # Default to https, but use http for anonnet addresses, which don't require/support https.
+        proto = b'http' if (is_anonweb_server_name(server_name.decode("ascii"))) else b'https'
+        uri = b"%s://%s/.well-known/matrix/server" % (proto, server_name,)
         uri_str = uri.decode("ascii")
 
         headers = {

@@ -25,6 +25,7 @@ from urllib.request import (  # type: ignore[attr-defined]
 )
 
 from netaddr import AddrFormatError, IPAddress, IPSet
+from synapse.util.stringutils import is_anonweb_server_name
 from zope.interface import implementer
 
 from twisted.internet import defer
@@ -319,7 +320,17 @@ class MatrixHostnameEndpoint:
         self._parsed_uri = parsed_uri
         self.proxy_config = proxy_config
 
-        # http_proxy is not needed because federation is always over TLS
+        # http_proxy is only needed if federation is an anonnet, which don't support https. In that case, we need to use the http_proxy to connect to the server.
+        (
+            self._http_proxy_endpoint,
+            self._http_proxy_creds,
+        ) = proxyagent.http_proxy_endpoint(
+            self.proxy_config.http_proxy.encode()
+            if self.proxy_config and self.proxy_config.http_proxy
+            else None,
+            proxy_reactor,
+            None
+        )
 
         # endpoint and credentials to use to connect to the outbound https proxy, if any.
         (
@@ -373,7 +384,23 @@ class MatrixHostnameEndpoint:
 
             endpoint: IStreamClientEndpoint
             try:
-                if self._https_proxy_endpoint and not should_skip_proxy:
+                if is_anonweb_server_name(host.decode("ascii")):
+                    # If the server name ends with .i2p or .onion, we don't want to use https, since those addresses don't support HTTPS.
+                    # Instead, we just use http and connect directly to the server.
+                    logger.debug("Connecting to %s:%i via HTTP (anonnet detected)", host.decode("ascii"), port)
+
+                    if not self._http_proxy_endpoint:
+                        raise Exception("No HTTP proxy endpoint available for anonnet connection")
+
+                    endpoint = HTTPConnectProxyEndpoint(
+                        self._reactor,
+                        self._http_proxy_endpoint,
+                        host,
+                        port,
+                        proxy_creds=self._http_proxy_creds,
+                    )
+                    self._tls_options = None  # Disable TLS for .i2p/.onion connections
+                elif self._https_proxy_endpoint and not should_skip_proxy:
                     logger.debug(
                         "Connecting to %s:%i via %s",
                         host.decode("ascii"),

@@ -29,7 +29,7 @@ from synapse.http.server import DirectServeJsonResource
 from synapse.http.site import SynapseRequest
 from synapse.types import JsonDict
 from synapse.util.json import json_encoder
-from synapse.util.stringutils import parse_server_name
+from synapse.util.stringutils import is_anonweb_server_name, parse_server_name
 
 if TYPE_CHECKING:
     from synapse.server import HomeServer
@@ -105,6 +105,10 @@ class ServerWellKnownResource(Resource):
         # we just redirect the traffic to port 443 instead of 8448.
         if port is None:
             port = 443
+
+        if is_anonweb_server_name(host):
+            # For anonnet addresses, we need to use 80.
+            port = 80
 
         self._response = json_encoder.encode({"m.server": f"{host}:{port}"}).encode(
             "utf-8"
