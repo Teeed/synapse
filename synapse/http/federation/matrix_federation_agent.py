@@ -386,7 +386,7 @@ class MatrixHostnameEndpoint:
             endpoint: IStreamClientEndpoint
             try:
                 if is_anonweb_server_name(host):
-                    # If the server name ends with .i2p or .onion, we don't want to use https, since those addresses don't support HTTPS.
+                    # If the server name ends with known anonweb domains, we don't want to use https, since those addresses don't support HTTPS.
                     # Instead, we just use http and connect directly to the server.
                     logger.debug("Connecting to %s:%i via HTTP (anonnet detected)", host.decode("ascii"), port)
 
@@ -400,7 +400,7 @@ class MatrixHostnameEndpoint:
                         port,
                         proxy_creds=self._http_proxy_creds,
                     )
-                    self._tls_options = None  # Disable TLS for .i2p/.onion connections
+                    self._tls_options = None  # Disable TLS for anonweb connections
                 elif self._https_proxy_endpoint and not should_skip_proxy:
                     logger.debug(
                         "Connecting to %s:%i via %s",
