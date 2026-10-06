@@ -271,7 +271,7 @@ class WellKnownResolver:
         """
 
         # Default to https, but use http for anonnet addresses, which don't require/support https.
-        proto = b'http' if (is_anonweb_server_name(server_name.decode("ascii"))) else b'https'
+        proto = b'http' if (is_anonweb_server_name(server_name)) else b'https'
         uri = b"%s://%s/.well-known/matrix/server" % (proto, server_name,)
         uri_str = uri.decode("ascii")
 

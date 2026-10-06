@@ -175,7 +175,7 @@ def parse_and_validate_server_name(server_name: str) -> tuple[str, int | None]:
     return host, port
 
 
-def is_anonweb_server_name(host: str) -> bool:
+def is_anonweb_server_name(host: bytes) -> bool:
     """Test if the given host name is either an .i2p or .onion address.
     This is used to determine whether to use http or https for federation requests and whether to force usage of the http_proxy.
 
@@ -183,7 +183,7 @@ def is_anonweb_server_name(host: str) -> bool:
         host: The host name to check
     """
 
-    return host.endswith(".i2p") or host.endswith(".onion")
+    return host.endswith(b".i2p") or host.endswith(b".onion")
 
 
 def valid_id_server_location(id_server: str) -> bool:

@@ -210,6 +210,7 @@ class MatrixFederationAgent:
             parsed_uri.scheme == b"matrix-federation"
             and not _is_ip_literal(parsed_uri.hostname)
             and not parsed_uri.port
+            and not is_anonweb_server_name(parsed_uri.hostname)
         ):
             well_known_result = yield defer.ensureDeferred(
                 self._well_known_resolver.get_well_known(parsed_uri.hostname)
@@ -384,7 +385,7 @@ class MatrixHostnameEndpoint:
 
             endpoint: IStreamClientEndpoint
             try:
-                if is_anonweb_server_name(host.decode("ascii")):
+                if is_anonweb_server_name(host):
                     # If the server name ends with .i2p or .onion, we don't want to use https, since those addresses don't support HTTPS.
                     # Instead, we just use http and connect directly to the server.
                     logger.debug("Connecting to %s:%i via HTTP (anonnet detected)", host.decode("ascii"), port)
@@ -457,6 +458,10 @@ class MatrixHostnameEndpoint:
 
         host = parsed_uri.hostname
         port = parsed_uri.port
+
+        # If the server name is an anonnet address, we bypass SRV lookups and just use the given host/port.
+        if is_anonweb_server_name(host):
+            return [Server(host, port or 80)]
 
         # If there is an explicit port or the host is an IP address we bypass
         # SRV lookups and just use the given host/port.

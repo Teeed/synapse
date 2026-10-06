@@ -1753,6 +1753,63 @@ class MatrixFederationAgentTests(unittest.TestCase):
         # Failed to resolve a server.
         self.assertFailure(test_d, Exception)
 
+    @patch.dict(
+        os.environ,
+        {"http_proxy": "http://proxy.com", "https_proxy": "", "no_proxy": ""},
+    )
+    def test_i2p_and_onion(self) -> None:
+        """Test that .i2p and .onion addresses are not looked up via SRV and are forced through the HTTP proxy."""
+        self.reactor.lookups["proxy.com"] = "9.9.9.9"
+
+        for server_name in (b"example.i2p", b"example.onion"):
+            self.agent = self._make_agent()
+            test_d = self._make_get_request(
+                b"matrix-federation://" + server_name + b"/foo/bar"
+            )
+
+            self.mock_resolver.resolve_service.assert_not_called()
+
+            clients = self.reactor.tcpClients
+            self.assertEqual(len(clients), 1)
+            host, port, client_factory, _timeout, _bind_address = clients.pop()
+            self.assertEqual(host, "9.9.9.9")
+            self.assertEqual(port, 1080)
+
+            proxy_server = self._make_connection(client_factory, ssl=False)
+            self.assertEqual(len(proxy_server.requests), 1)
+            connect_request = proxy_server.requests[0]
+            self.assertEqual(connect_request.method, b"CONNECT")
+            self.assertEqual(connect_request.path, server_name + b":80")
+
+            # Route the tunnel to a plain HTTP server, as .i2p/.onion do not use TLS.
+            proxy_server.persistent = True
+            proxy_transport = proxy_server.transport
+            assert isinstance(proxy_transport, FakeTransport)
+            client_protocol = proxy_transport.other
+            assert isinstance(client_protocol, Protocol)
+            client_transport = checked_cast(FakeTransport, client_protocol.transport)
+            http_server = _get_test_protocol_factory().buildProtocol(dummy_address)
+            assert http_server is not None
+            http_server.makeConnection(proxy_transport)
+            client_transport.other = http_server
+
+            connect_request.finish()
+            self.reactor.advance(0)
+
+            self.assertEqual(len(http_server.requests), 1)
+            request = http_server.requests[0]
+            self.assertEqual(request.method, b"GET")
+            self.assertEqual(request.path, b"/foo/bar")
+            self.assertEqual(
+                request.requestHeaders.getRawHeaders(b"host"), [server_name]
+            )
+            request.finish()
+            self.reactor.advance(0)
+            response = self.successResultOf(test_d)
+            self.assertEqual(response.code, 200)
+
+            self.mock_resolver.resolve_service.reset_mock()
+
 
 class TestCachePeriodFromHeaders(unittest.TestCase):
     def test_cache_control(self) -> None:

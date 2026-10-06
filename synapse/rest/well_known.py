@@ -106,7 +106,7 @@ class ServerWellKnownResource(Resource):
         if port is None:
             port = 443
 
-        if is_anonweb_server_name(host):
+        if is_anonweb_server_name(host.encode("ascii")):
             # For anonnet addresses, we need to use 80.
             port = 80
 
